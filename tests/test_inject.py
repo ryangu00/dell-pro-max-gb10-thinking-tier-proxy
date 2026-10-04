@@ -267,5 +267,17 @@ class NormalizeTier(unittest.TestCase):
                                "sampling": {"chat_template_kwargs": {}}})
 
 
+class MaxEffort(unittest.TestCase):
+    def test_max_is_an_accepted_effort_and_is_injected(self):
+        t = tier(effort="max", kwarg="thinking")
+        o = m.inject({"model": "x", "messages": [], "reasoning_effort": "low"}, t)
+        self.assertEqual(o["reasoning_effort"], "max")
+        self.assertEqual(o["chat_template_kwargs"], {"thinking": True})
+
+    def test_unknown_effort_is_still_rejected(self):
+        with self.assertRaises(ValueError):
+            tier(effort="extreme")
+
+
 if __name__ == "__main__":
     unittest.main()

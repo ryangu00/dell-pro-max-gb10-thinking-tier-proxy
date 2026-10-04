@@ -8,11 +8,14 @@ the tier; the port picks it. Everything that is not a chat completion is passed
 through byte-for-byte, streaming included.
 
 Why: the two model families this was built against expose thinking toggles under
-`chat_template_kwargs`, but with different key names. Qwen3.8-Flash-Next reads
-`chat_template_kwargs.enable_thinking` and a top-level `reasoning_effort` drawn
-from {xhigh, medium, low}; DeepSeek V4 Flash reads `chat_template_kwargs.thinking`
-and a top-level `reasoning_effort` from {low, medium, high, xhigh}. Both also
-reject any `reasoning_effort` they do not understand with HTTP 400. Forcing the
+`chat_template_kwargs`, but with different key names. DeepSeek V4 Flash reads
+`chat_template_kwargs.thinking`; for `reasoning_effort` we have recorded evidence
+for `high` (the engine's own default in one recipe) and `max` (used in production),
+and upstream documentation names `low`; we have no record of `medium` or `xhigh`
+being accepted by that engine, so do not rely on them. Qwen3.8-Flash-Next reads
+`chat_template_kwargs.enable_thinking` and accepts `xhigh`, `medium` and `low`
+only; `high` and `max` are rejected (HTTP 400 on `high` observed). No live engine
+probe was run for this update. Forcing the
 value at the port means a caller that sends a family-illegal effort (e.g. "max"
 at a Qwen port) is corrected before it can reach the engine.
 
@@ -25,7 +28,7 @@ loopback), and `--tiers '<JSON>'` (or TIERTIER_TIERS env), a mapping of local po
     {
       "<port>": {
         "enable_thinking": true|false,
-        "effort": "low"|"medium"|"high"|"xhigh"|null,
+        "effort": "low"|"medium"|"high"|"xhigh"|"max"|null,
         "kwarg": "enable_thinking"|"thinking",
         "sampling": {"temperature":1.0,"top_p":0.95,"top_k":20,"presence_penalty":0.0}  // optional
       }
@@ -75,8 +78,8 @@ def _normalize_tier(raw):
         raise ValueError(f"enable_thinking must be a JSON boolean (true/false), "
                          f"got {raw['enable_thinking']!r}")
     effort = raw.get("effort")
-    if effort is not None and effort not in ("low", "medium", "high", "xhigh"):
-        raise ValueError(f"effort must be low|medium|high|xhigh|null, got {effort!r}")
+    if effort is not None and effort not in ("low", "medium", "high", "xhigh", "max"):
+        raise ValueError(f"effort must be low|medium|high|xhigh|max|null, got {effort!r}")
     sampling = dict(raw.get("sampling") or {})
     # sampling is applied with setdefault, so a key here that collides with a
     # policy field the proxy already controls would let the config undo the tier
